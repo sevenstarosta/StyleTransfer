@@ -2,6 +2,7 @@ from keras.applications import VGG19
 from keras.models import Sequential, Model
 from keras.layers import Dropout, Flatten, Dense, Input
 from keras.preprocessing import image
+import numpy
 
 def gramMat(A):
     (l,x,y,N)=A.shape
@@ -14,14 +15,28 @@ def gramMat(A):
     return B
 
 img = image.load_img('starrynight.jpg')
-#need to normalize. Also need to figure out preprocessing? Add top layers or no?
-input_tensor = Input(shape=(150,150,3))
-trainedModel = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
-for layers in trainedModel.layers:
-    pass
+#if content and style images are of different sizes, resize the style image to the content image size.
+contentImage=image.img_to_array(img)
 
+input_tensor = Input(shape=contentImage.shape)
+
+trainedModel = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
+
+contentModel = Sequential()
+
+for layer in trainedModel.layers[:15]:
+    contentModel.add(layer)
+
+print(contentImage.shape)
+print()
+
+print(contentModel.predict(numpy.array([contentImage]),1,0))
+
+print("SHAPE")
+#appears to have the outputs of 512 neurons, which each roughly preserve aspect ratio of input image.
+print(contentModel.predict(numpy.array([contentImage]),1,0).shape)
 #may be easier to convert...
-firstlayer=trainedModel.layers[1]
-print(firstlayer.get_weights())
+#firstlayer=trainedModel.layers[1]
+#print(firstlayer.get_weights())
 
 trainedModel.save('trainedModel1.HDF5')
