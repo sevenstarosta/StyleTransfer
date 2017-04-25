@@ -14,6 +14,16 @@ def gramMat(A):
                     B[map1][map2]+=(A[0][a][y][map1]*A[0][x][y][map2])
     return B
 
+def contentLoss(A,B):
+    (l,x,y,N)=A.shape
+    C=0
+    for map in range(N):
+        for a in range(x):
+            for b in range(y):
+                C+=
+    #assume A and B share the same shape for simplicity.
+    
+
 img = image.load_img('starrynight.jpg')
 #if content and style images are of different sizes, resize the style image to the content image size.
 contentImage=image.img_to_array(img)
