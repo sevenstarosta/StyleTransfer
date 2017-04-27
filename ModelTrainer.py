@@ -124,7 +124,7 @@ styleModel4.layers[-1].outbound_nodes = []
 #styleModel5.outputs = [styleModel5.layers[-1].output]
 #styleModel5.layers[-1].outbound_nodes = []
     
-#must create grammat of output of style image on style model
+#must create gram matrix of output of style image on style model
 contentBase = contentModel.predict(numpy.array([contentImage]))
 styleBase1 = gramMat(styleModel1.predict(numpy.array([styleImage])))
 styleBase2 = gramMat(styleModel2.predict(numpy.array([styleImage])))
@@ -143,7 +143,7 @@ losses = [
 
 opt = Optimizer(trainedModel.input,losses)
 print("starting optimization")    
-finaloutput=opt.minimize(seed_img=noise,max_iter=50,verbose=False,progress_gif_path='proggif.gif')[0]
+finaloutput=opt.minimize(seed_img=noise,max_iter=40,verbose=False,progress_gif_path='proggif.gif')[0]
 print("finished")
 pyplot.imshow(finaloutput)
 pyplot.show()
