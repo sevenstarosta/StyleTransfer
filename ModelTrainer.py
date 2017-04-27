@@ -87,7 +87,10 @@ input_tensor = Input(shape=contentImage.shape)
 
 trainedModel = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
 
+layer_dict = dict([(layer.name, layer) for layer in trainedModel.layers[1:]])
+
 contentModel = Sequential()
+#print(trainedModel.summary())
 
 for layer in trainedModel.layers[:14]:
     contentModel.add(layer)
@@ -97,20 +100,20 @@ for layer in trainedModel.layers[:2]:
     styleModel1.add(layer)
     
 styleModel2 = Sequential()
-for layer in trainedModel.layers[:3]:
+for layer in trainedModel.layers[:5]:
     styleModel2.add(layer)
     
 styleModel3 = Sequential()
-for layer in trainedModel.layers[:5]:
+for layer in trainedModel.layers[:8]:
     styleModel3.add(layer)
     
 styleModel4 = Sequential()
-for layer in trainedModel.layers[:6]:
+for layer in trainedModel.layers[:13]:
     styleModel4.add(layer)
     
-styleModel5 = Sequential()
-for layer in trainedModel.layers[:8]:
-    styleModel5.add(layer)
+#styleModel5 = Sequential()
+#for layer in trainedModel.layers[:8]:
+#styleModel5.add(layer)
     
 #must create grammat of output of style image on style model
 contentBase = contentModel.predict(numpy.array([contentImage]))
@@ -118,15 +121,21 @@ styleBase1 = gramMat(styleModel1.predict(numpy.array([styleImage])))
 styleBase2 = gramMat(styleModel2.predict(numpy.array([styleImage])))
 styleBase3 = gramMat(styleModel3.predict(numpy.array([styleImage])))
 styleBase4 = gramMat(styleModel4.predict(numpy.array([styleImage])))
-styleBase5 = gramMat(styleModel5.predict(numpy.array([styleImage])))
+#styleBase5 = gramMat(styleModel5.predict(numpy.array([styleImage])))
 
-#losses = [(contentLoss(contentModel,contentModel.input,contentBase),1),(styleLoss(contentModel,contentModel.input,styleBase),1000)]
-#opt = Optimizer(contentModel.input,losses)    
-#finaloutput=opt.minimize(max_iter=30,verbose=True)[0]
-#pyplot.imshow(finaloutput)
-#pyplot.show()
-print(contentModel.summary())
-'Will pass contentModel.input contentBase and contentModel to contentLoss?'
+losses = [
+    (contentLoss(contentModel,contentModel.input,contentBase),1),
+    (styleLoss(styleModel1,contentModel.input,styleBase1),1000),
+    (styleLoss(styleModel2,contentModel.input,styleBase2),1000),
+    (styleLoss(styleModel3,contentModel.input,styleBase3),1000),
+    (styleLoss(styleModel4,contentModel.input,styleBase4),1000)
+]
+opt = Optimizer(contentModel.input,losses)    
+finaloutput=opt.minimize(seed_img=noise,max_iter=25,verbose=True)[0]
+print("finished")
+pyplot.imshow(finaloutput)
+pyplot.show()
+print("done with showing")
 
 #print((contentBase[0]).shape)
 #print(trainedModel.summary())
