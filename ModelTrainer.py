@@ -1,9 +1,7 @@
 from keras.applications import VGG19
-from keras.models import Sequential
 from keras.layers import Input
 from keras.preprocessing import image
 from random import randint
-from keras.utils import plot_model
 from vis.optimizer import Optimizer
 from vis import losses
 from matplotlib import pyplot
@@ -43,6 +41,7 @@ class styleLoss(losses.Loss):
         pred=self.layer.get_output_at(0)
         (l,x,y,N)=pred.shape
         A=gramMat(pred)
+        pred=[]
         C=0
         for x in range(N):
             for y in range(N):
@@ -53,10 +52,10 @@ class styleLoss(losses.Loss):
 def gramMat(A):
     (l,x,y,N)=A.shape
     B=[[0 for a in range(N)]for b in range(N)]
-    for map1 in range(N):
-        for map2 in range(N):
-            for a in range(x):
-                for b in range(y):
+    for a in range(x):
+        for b in range(y):
+            for map1 in range(N):
+                for map2 in range(N):
                     B[map1][map2]+=(A[0][a][b][map1]*A[0][a][b][map2])
     return B
 
@@ -71,12 +70,12 @@ def whiteNoise(rows,cols):
             noise_matrix[r][c][2] = randint(200,255)
     return noise_matrix
 
-img = image.load_img('eiffel128.png')
+img = image.load_img('eiffel64.png')
 contentImage=image.img_to_array(img)
 
 noise=whiteNoise(contentImage.shape[0],contentImage.shape[1])
 
-img = image.load_img('starrynight128.jpg')
+img = image.load_img('starrynight64.jpg')
 styleImage=image.img_to_array(img)
 #styleImage=cv2.resize(styleImage,None,(contentImage.shape[0],contentImage.shape[1]))
 #resize styleimage
@@ -84,6 +83,11 @@ styleImage=image.img_to_array(img)
 input_tensor = Input(shape=contentImage.shape)
 
 trainedModel = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
+for i in range(8):
+    trainedModel.layers.pop()
+trainedModel.outputs = [trainedModel.layers[-1].output]
+trainedModel.layers[-1].outbound_nodes = []
+
 
 layer_dict = dict([(layer.name, layer) for layer in trainedModel.layers[1:]])
 
@@ -93,11 +97,11 @@ for i in range(8):
 contentModel.outputs = [contentModel.layers[-1].output]
 contentModel.layers[-1].outbound_nodes = []
 
-styleModel1 = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
-for i in range(20):
-    styleModel1.layers.pop()
-styleModel1.outputs = [styleModel1.layers[-1].output]
-styleModel1.layers[-1].outbound_nodes = []
+#styleModel1 = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
+#for i in range(20):
+ #   styleModel1.layers.pop()
+#styleModel1.outputs = [styleModel1.layers[-1].output]
+#styleModel1.layers[-1].outbound_nodes = []
 
 styleModel2 = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
 for i in range(17):
@@ -111,11 +115,27 @@ for i in range(14):
 styleModel3.outputs = [styleModel3.layers[-1].output]
 styleModel3.layers[-1].outbound_nodes = []
 
-styleModel4 = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
-for i in range(9):
-    styleModel4.layers.pop()
-styleModel4.outputs = [styleModel4.layers[-1].output]
-styleModel4.layers[-1].outbound_nodes = []
+print("loaded content and stylemodels 1-3")
+contentBase = contentModel.predict(numpy.array([contentImage]))
+print("loaded content base")
+#styleBase1 = gramMat(styleModel1.predict(numpy.array([styleImage])))
+#print("loaded stylebase1")
+styleBase2 = gramMat(styleModel2.predict(numpy.array([styleImage])))
+print("loaded stylebase2")
+styleBase3 = gramMat(styleModel3.predict(numpy.array([styleImage])))
+print("loaded stylebase3")
+
+#styleModel1=[]
+styleModel2=[]
+styleModel3=[]
+contentModel=[]
+
+#print("deleted old models. Creating styleModel 4")
+#styleModel4 = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
+#for i in range(9):
+#    styleModel4.layers.pop()
+#styleModel4.outputs = [styleModel4.layers[-1].output]
+#styleModel4.layers[-1].outbound_nodes = []
 
 #block5_conv1, needt to repalce 8 with appropriate index offset
 #styleModel5 = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
@@ -125,26 +145,28 @@ styleModel4.layers[-1].outbound_nodes = []
 #styleModel5.layers[-1].outbound_nodes = []
     
 #must create gram matrix of output of style image on style model
-contentBase = contentModel.predict(numpy.array([contentImage]))
-styleBase1 = gramMat(styleModel1.predict(numpy.array([styleImage])))
-styleBase2 = gramMat(styleModel2.predict(numpy.array([styleImage])))
-styleBase3 = gramMat(styleModel3.predict(numpy.array([styleImage])))
-styleBase4 = gramMat(styleModel4.predict(numpy.array([styleImage])))
+print("done loading models")
+
+#styleBase4 = gramMat(styleModel4.predict(numpy.array([styleImage])))
+#print("laoded stylebase4")
+#styleModel4=[]
 #styleBase5 = gramMat(styleModel5.predict(numpy.array([styleImage])))
 
 #sum style weights so that total approx = 1000
 losses = [
     (contentLoss(layer_dict["block4_conv2"],contentBase),1),
-    (styleLoss(layer_dict["block1_conv1"],styleBase1),250),
-    (styleLoss(layer_dict["block2_conv1"],styleBase2),250),
-    (styleLoss(layer_dict["block3_conv1"],styleBase3),250),
-    (styleLoss(layer_dict["block4_conv1"],styleBase4),250)
+    #(styleLoss(layer_dict["block1_conv1"],styleBase1),250),
+    (styleLoss(layer_dict["block2_conv1"],styleBase2),500),
+    (styleLoss(layer_dict["block3_conv1"],styleBase3),500),
+    #(styleLoss(layer_dict["block4_conv1"],styleBase4),250)
 ]
 
+print("loaded losses. Initializing optimizer")
+
 opt = Optimizer(trainedModel.input,losses)
-print("starting optimization")    
+print("Optimizer Initialized. Starting optimization")    
 finaloutput=opt.minimize(seed_img=noise,max_iter=40,verbose=False,progress_gif_path='proggif.gif')[0]
 print("finished")
 pyplot.imshow(finaloutput)
-pyplot.show()
+pyplot.show() 
 print("done with showing")
