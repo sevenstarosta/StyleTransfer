@@ -99,6 +99,7 @@ def deprocess(img):
     img[:, :, 1] += 116.779
     img[:, :, 2] += 123.68
     img=img[:, :, ::-1]
+    img=numpy.clip(img, 0, 255).astype('uint8')
     return img
 
 img = image.load_img(contentdir)
@@ -145,7 +146,21 @@ for i in range(14):
 styleModel3.outputs = [styleModel3.layers[-1].output]
 styleModel3.layers[-1].outbound_nodes = []
 
-print("loaded content and stylemodels 1-3")
+styleModel4 = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
+for i in range(9):
+    styleModel4.layers.pop()
+styleModel4.outputs = [styleModel4.layers[-1].output]
+styleModel4.layers[-1].outbound_nodes = []
+
+#block5_conv1, needt to repalce 8 with appropriate index offset
+styleModel5 = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
+for i in range(4):
+    styleModel5.layers.pop()
+styleModel5.outputs = [styleModel5.layers[-1].output]
+styleModel5.layers[-1].outbound_nodes = []
+
+print("done loading models")
+
 contentBase = contentModel.predict(numpy.array([contentImage]))[0, :, :, :]
 print("loaded content base")
 styleBase1 = gramMat(styleModel1.predict(numpy.array([styleImage]))[0])
@@ -154,47 +169,30 @@ styleBase2 = gramMat(styleModel2.predict(numpy.array([styleImage]))[0])
 print("loaded stylebase2")
 styleBase3 = gramMat(styleModel3.predict(numpy.array([styleImage]))[0])
 print("loaded stylebase3")
+styleBase4 = gramMat(styleModel4.predict(numpy.array([styleImage]))[0])
+print("loaded stylebase4")
+styleBase5=gramMat(styleModel5.predict(numpy.array([styleImage]))[0])
+print("loaded stylebase5")
 
+contentModel=[] 
 styleModel1=[]
 styleModel2=[]
 styleModel3=[]
-contentModel=[]
+styleModel4=[]
+styleModel5=[]
 
-print("deleted old models. Creating styleModel 4")
-styleModel4 = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
-for i in range(9):
-    styleModel4.layers.pop()
-styleModel4.outputs = [styleModel4.layers[-1].output]
-styleModel4.layers[-1].outbound_nodes = []
-
-styleBase4 = gramMat(styleModel4.predict(numpy.array([styleImage]))[0])
-
-#block5_conv1, needt to repalce 8 with appropriate index offset
-styleModel5 = VGG19(weights='imagenet',include_top= False,input_tensor=input_tensor)
-for i in range(8):
-    styleModel5.layers.pop()
-styleModel5.outputs = [styleModel5.layers[-1].output]
-styleModel5.layers[-1].outbound_nodes = []
-styleBase5=gramMat(styleModel5.predict(numpy.array([styleImage]))[0]) 
-styleModel5=[]   
-#must create gram matrix of output of style image on style model
-print("done loading models")
-
-
-#print("laoded stylebase4")
-#styleModel4=[]
-#styleBase5 = gramMat(styleModel5.predict(numpy.array([styleImage])))
-
-#sum style weights so that total approx = 1000
+#A list of loss functions and their associated weights which get passed into the optimizer class
+#use small weights to try to reduce the learning rate in optimizer.py
 losses = [
     (contentLoss(contentBase,layer_dict["block4_conv2"][0, :, :, :]),.025),
-    (styleLoss(styleBase1,layer_dict["block1_conv1"][0, :, :, :]),1),
-    (styleLoss(styleBase2,layer_dict["block2_conv1"][0, :, :, :]),1),
-    (styleLoss(styleBase3,layer_dict["block3_conv1"][0, :, :, :]),1),
-    (styleLoss(styleBase4,layer_dict["block4_conv1"][0, :, :, :]),1),
-    (styleLoss(styleBase5,layer_dict["block5_conv1"][0, :, :, :]),1)
+    (styleLoss(styleBase1,layer_dict["block1_conv1"][0, :, :, :]),.025),
+    (styleLoss(styleBase2,layer_dict["block2_conv1"][0, :, :, :]),.025),
+    (styleLoss(styleBase3,layer_dict["block3_conv1"][0, :, :, :]),.025),
+    (styleLoss(styleBase4,layer_dict["block4_conv1"][0, :, :, :]),.025),
+    (styleLoss(styleBase5,layer_dict["block5_conv1"][0, :, :, :]),.025)
 ]
 
+#the following code was written to use another library, using a function instead of a class
 #totalloss=K.variable(0.)
 #totalloss+=contentLossF(contentBase,layer_dict["block4_conv2"][0, :, :, :])
 #print("made content loss")
@@ -205,16 +203,14 @@ losses = [
 #totalloss+=250*styleLossF(styleBase3,layer_dict["block3_conv1"][0, :, :, :])
 #print("made style loss 3")
 #totalloss+=250*styleLossF(styleBase4,layer_dict["block4_conv1"][0, :, :, :])
-
 #print("loaded losses. Calculating gradients...")
-
 #grads = K.gradients(totalloss,trainedModel.input)
-
 #print("Calculated gradients...")
+
 print("Losses initialized. Initializing optimizer")
 opt = Optimizer(trainedModel.input,losses)
 print("Optimizer Initialized. Starting optimization")    
-finaloutput=opt.minimize(seed_img=noise,max_iter=iterations,verbose=True,progress_gif_path='proggif.gif')[0]
+finaloutput=opt.minimize(seed_img=noise,max_iter=iterations,verbose=False,progress_gif_path='proggif.gif')[0]
 finaloutput=deprocess(finaloutput)
 print("finished")
 pyplot.imshow(finaloutput)
