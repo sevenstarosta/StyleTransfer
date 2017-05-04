@@ -221,7 +221,7 @@ finaloutput=opt.minimize(seed_img=noise,max_iter=iterations,verbose=True,progres
 print("finished")
 cv2.imshow('window',finaloutput[:, :, ::-1]) 
 cv2.waitKey(0)
-cv2.destroyAllWindows()
+cv2.destroyAllWindows() 
 #pyplot.imshow(finaloutput)
 #pyplot.show() 
 print("done with showing")
