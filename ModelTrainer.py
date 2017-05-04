@@ -1,6 +1,7 @@
 # Main file for final computer vision project, CS 4501, Spring 2017
 # Author of all code in this file except where otherwise noted: Seven Starosta
 # TO RUN: python ModelTrainer.py contentimage styleimage iterations
+# color preservation done in another file
 
 from keras.applications import VGG19
 from keras.layers import Input
@@ -208,6 +209,7 @@ losses = [
 #print("Calculated gradients...")
 
 print("Losses initialized. Initializing optimizer")
+#first argument are the variables which will be changed by the optimizer and which the output will have partial derivatives taken wrt
 opt = Optimizer(trainedModel.input,losses)
 print("Optimizer Initialized. Starting optimization")    
 finaloutput=opt.minimize(seed_img=noise,max_iter=iterations,verbose=False,progress_gif_path='proggif.gif')[0]
