@@ -1,3 +1,7 @@
+# Main file for final computer vision project, CS 4501, Spring 2017
+# Author of all code in this file except where otherwise noted: Seven Starosta
+# TO RUN: python ModelTrainer.py contentimage styleimage iterations
+
 from keras.applications import VGG19
 from keras.layers import Input
 from keras.preprocessing import image
@@ -7,57 +11,71 @@ from vis.optimizer import Optimizer
 from vis import losses
 from matplotlib import pyplot
 import numpy
-#import cv2
+import sys
 
-def gramMat(input):
-    #(x,y,N)=A.shape
+#Reading parameters
+contentdir = sys.argv[1]
+styledir= sys.argv[2]
+iterations = int(sys.argv[3])
+
+# gram matrix function, to be used in style loss.
+# commented out code was original that gave memory problems.
+# input is the first element of the output of a style layer, which gives three dimensional tensor
+# output is N*N matrix with inner products as entries
+# final code to fix memory errors based on: https://github.com/fchollet/keras/blob/master/examples/neural_style_transfer.py
+def gramMat(i):
+    #(x,y,N)=i.shape
     #B=[[0 for a in range(N)]for b in range(N)]
     #for a in range(x):
     #    for b in range(y):
     #        for map1 in range(N):
     #            for map2 in range(N):
-    #                B[map1][map2]+=(A[a][b][map1]*A[a][b][map2])
-	A=K.batch_flatten(K.permute_dimensions(input, (2, 0, 1)))
+    #                B[map1][map2]+=(i[a][b][map1]*i[a][b][map2])
+    #return B
+	A=K.batch_flatten(K.permute_dimensions(i, (2, 0, 1)))
 	B=K.transpose(A)
 	return K.dot(A,B)
 
-def contentLossF(content,input):
-	return K.sum(K.square(content-input))
+# content is the output of the content image at layer Conv4_2, i is the output of the image generated at the same layer
+# gives mean squared difference of output image and content image
+def contentLossF(content,i):
+	return K.sum(K.square(content-i))
 
-#style already as gram matrix
-def styleLossF(style,input):
-	(x,y,N)=input.shape
-	B=gramMat(input)
+#style parameter already as gram matrix, i is the output from one of the five style layers
+# C is divided by normalizing constant equal to 4* size of gram matrix * (size of output of layer ^2)
+def styleLossF(style,i):
+	(x,y,N)=i.shape
+	B=gramMat(i)
 	C=K.sum(K.square(B-style))
 	C/= (4.*(int(N)**2)*((int(x)*int(y))**2))
 	return C
-	
+
+#classes for use with vis.optimizer.py
+#pass in variable 'content' as pre-calculated output from content image, same with 'style' as precalculated gram amtrix
 class contentLoss(losses.Loss):
 	#pass cmodel.input as array. Pass model. Pass already predicted output.
-	def __init__(self,content,input):
+	def __init__(self,content,i):
 		super(contentLoss,self).__init__()
 		self.name="Content Loss Function"
 		self.content=content
-		self.input=input
+		self.i=i
 	def build_loss(self):
-		return K.sum(K.square(self.content-self.input))
-        
+		return K.sum(K.square(self.content-self.i))
+
 class styleLoss(losses.Loss):
-	#predicted is already in gram matrix form
-	def __init__(self,style,input):
+	def __init__(self,style,i):
 		super(styleLoss,self).__init__()
 		self.name="Style Loss Function"
 		self.style=style
-		self.input=input
+		self.i=i
 	def build_loss(self):
-		(x,y,N)=self.input.shape
-		B=gramMat(self.input)
+		(x,y,N)=self.i.shape
+		B=gramMat(self.i)
 		C=K.sum(K.square(B-self.style))
 		C/= (4.*(int(N)**2)*((int(x)*int(y))**2))
 		return C
 
-#change to pass in input image. Then run predict on truncated model.
-    
+#White noise function written by Brittany Yu
 def whiteNoise(rows,cols):
     noise_matrix = numpy.empty(shape=[rows,cols,3], dtype= numpy.uint8)
     for r in range(0,rows):
@@ -67,15 +85,31 @@ def whiteNoise(rows,cols):
             noise_matrix[r][c][2] = randint(200,255)
     return noise_matrix
 
-img = image.load_img('uva rotunda.jpg')
-contentImage=image.img_to_array(img)
+#takes image, already converted to array.
+# Since vgg19 trained on BGR images, switch channels, then remove mean pixel values
+def preprocess(img):
+    img=img[:, :, ::-1] #swap channels
+    img[:, :, 0] -= 103.939
+    img[:, :, 1] -= 116.779
+    img[:, :, 2] -= 123.68
+    return img
+
+def deprocess(img):
+    img[:, :, 0] += 103.939
+    img[:, :, 1] += 116.779
+    img[:, :, 2] += 123.68
+    img=img[:, :, ::-1]
+    return img
+
+img = image.load_img(contentdir)
+img=image.img_to_array(img)
+contentImage=preprocess(img)
 
 noise=whiteNoise(contentImage.shape[0],contentImage.shape[1])
 
-img = image.load_img('pollockResized.jpg')
-styleImage=image.img_to_array(img)
-#styleImage=cv2.resize(styleImage,None,(contentImage.shape[0],contentImage.shape[1]))
-#resize styleimage
+img = image.load_img(styledir)
+img=image.img_to_array(img)
+styleImage=preprocess(img)
 
 input_tensor = Input(shape=contentImage.shape)
 
@@ -153,12 +187,12 @@ print("done loading models")
 
 #sum style weights so that total approx = 1000
 losses = [
-    (contentLoss(contentBase,layer_dict["block4_conv2"][0, :, :, :]),2),
-    (styleLoss(styleBase1,layer_dict["block1_conv1"][0, :, :, :]),250),
-    (styleLoss(styleBase2,layer_dict["block2_conv1"][0, :, :, :]),250),
-    (styleLoss(styleBase3,layer_dict["block3_conv1"][0, :, :, :]),250),
-    (styleLoss(styleBase4,layer_dict["block4_conv1"][0, :, :, :]),250),
-    (styleLoss(styleBase5,layer_dict["block5_conv1"][0, :, :, :]),300)
+    (contentLoss(contentBase,layer_dict["block4_conv2"][0, :, :, :]),.025),
+    (styleLoss(styleBase1,layer_dict["block1_conv1"][0, :, :, :]),1),
+    (styleLoss(styleBase2,layer_dict["block2_conv1"][0, :, :, :]),1),
+    (styleLoss(styleBase3,layer_dict["block3_conv1"][0, :, :, :]),1),
+    (styleLoss(styleBase4,layer_dict["block4_conv1"][0, :, :, :]),1),
+    (styleLoss(styleBase5,layer_dict["block5_conv1"][0, :, :, :]),1)
 ]
 
 #totalloss=K.variable(0.)
@@ -180,7 +214,8 @@ losses = [
 print("Losses initialized. Initializing optimizer")
 opt = Optimizer(trainedModel.input,losses)
 print("Optimizer Initialized. Starting optimization")    
-finaloutput=opt.minimize(seed_img=noise,max_iter=25,verbose=True,progress_gif_path='proggif.gif')[0]
+finaloutput=opt.minimize(seed_img=noise,max_iter=iterations,verbose=True,progress_gif_path='proggif.gif')[0]
+finaloutput=deprocess(finaloutput)
 print("finished")
 pyplot.imshow(finaloutput)
 pyplot.show() 
