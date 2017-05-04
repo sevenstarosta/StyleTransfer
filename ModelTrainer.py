@@ -3,7 +3,7 @@
 # TO RUN: python ModelTrainer.py contentimage styleimage iterations
 # color preservation done in another file
 
-from keras.applications import VGG19
+from keras.applications import VGG19, vgg19
 from keras.layers import Input
 from keras.preprocessing import image
 from keras import backend as K
@@ -13,6 +13,7 @@ from vis import losses
 from matplotlib import pyplot
 import numpy
 import sys
+import cv2
 
 #Reading parameters
 contentdir = sys.argv[1]
@@ -86,32 +87,35 @@ def whiteNoise(rows,cols):
             noise_matrix[r][c][2] = randint(200,255)
     return noise_matrix
 
+img = image.load_img(contentdir)
+contentImage=image.img_to_array(img)
+width = contentImage.shape[0]
+height = contentImage.shape[1]
+
 #takes image, already converted to array.
 # Since vgg19 trained on BGR images, switch channels, then remove mean pixel values
 def preprocess(img):
-    img=img[:, :, ::-1] #swap channels
-    img[:, :, 0] -= 103.939
-    img[:, :, 1] -= 116.779
-    img[:, :, 2] -= 123.68
-    return img
+    img = numpy.expand_dims(img, axis=0)
+    img = vgg19.preprocess_input(img)
+    return img[0]
 
 def deprocess(img):
+    img=img.reshape((width, height, 3))
+    img=img.astype('float64')
     img[:, :, 0] += 103.939
     img[:, :, 1] += 116.779
     img[:, :, 2] += 123.68
     img=img[:, :, ::-1]
-    img=numpy.clip(img, 0, 255).astype('uint8')
+    img=numpy.clip(img, 0, 255)
     return img
 
-img = image.load_img(contentdir)
-img=image.img_to_array(img)
-contentImage=preprocess(img)
+#contentImage=preprocess(contentImage)
 
 noise=whiteNoise(contentImage.shape[0],contentImage.shape[1])
 
 img = image.load_img(styledir)
-img=image.img_to_array(img)
-styleImage=preprocess(img)
+styleImage=image.img_to_array(img)
+#styleImage=preprocess(styleImage)
 
 input_tensor = Input(shape=contentImage.shape)
 
@@ -185,12 +189,12 @@ styleModel5=[]
 #A list of loss functions and their associated weights which get passed into the optimizer class
 #use small weights to try to reduce the learning rate in optimizer.py
 losses = [
-    (contentLoss(contentBase,layer_dict["block4_conv2"][0, :, :, :]),.025),
-    (styleLoss(styleBase1,layer_dict["block1_conv1"][0, :, :, :]),.025),
-    (styleLoss(styleBase2,layer_dict["block2_conv1"][0, :, :, :]),.025),
-    (styleLoss(styleBase3,layer_dict["block3_conv1"][0, :, :, :]),.025),
-    (styleLoss(styleBase4,layer_dict["block4_conv1"][0, :, :, :]),.025),
-    (styleLoss(styleBase5,layer_dict["block5_conv1"][0, :, :, :]),.025)
+    (contentLoss(contentBase,layer_dict["block4_conv2"][0, :, :, :]),.08),
+    (styleLoss(styleBase1,layer_dict["block1_conv1"][0, :, :, :]),.02),
+    (styleLoss(styleBase2,layer_dict["block2_conv1"][0, :, :, :]),.02),
+    (styleLoss(styleBase3,layer_dict["block3_conv1"][0, :, :, :]),.02),
+    (styleLoss(styleBase4,layer_dict["block4_conv1"][0, :, :, :]),.02),
+    (styleLoss(styleBase5,layer_dict["block5_conv1"][0, :, :, :]),.02)
 ]
 
 #the following code was written to use another library, using a function instead of a class
@@ -212,9 +216,12 @@ print("Losses initialized. Initializing optimizer")
 #first argument are the variables which will be changed by the optimizer and which the output will have partial derivatives taken wrt
 opt = Optimizer(trainedModel.input,losses)
 print("Optimizer Initialized. Starting optimization")    
-finaloutput=opt.minimize(seed_img=noise,max_iter=iterations,verbose=False,progress_gif_path='proggif.gif')[0]
-finaloutput=deprocess(finaloutput)
+finaloutput=opt.minimize(seed_img=noise,max_iter=iterations,verbose=True,progress_gif_path='proggif.gif')[0]
+#finaloutput=deprocess(finaloutput)
 print("finished")
-pyplot.imshow(finaloutput)
-pyplot.show() 
+cv2.imshow('window',finaloutput[:, :, ::-1]) 
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+#pyplot.imshow(finaloutput)
+#pyplot.show() 
 print("done with showing")
